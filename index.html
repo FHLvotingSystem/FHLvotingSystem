@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>團契幹部選舉</title>
+    <style>
+        body { font-family: '微軟正黑體', sans-serif; padding: 15px; max-width: 600px; margin: 0 auto; background: #f0f2f5; }
+        .header-logo { text-align: center; margin-bottom: 20px; }
+        .header-logo img { width: 120px; height: 120px; border-radius: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .role-section { background-color: #f9f9f9; border-radius: 8px; padding: 15px; margin-bottom: 20px; border: 1px solid #eee; }
+        
+        /* 針對下拉選單的全新樣式 */
+        select { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; background: white; cursor: pointer; }
+        .select-label { font-size: 14px; color: #555; margin-bottom: 5px; display: block; font-weight: bold; }
+        
+        input[type="text"] { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; }
+        button { background: #000; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold;}
+        button:hover { background: #333; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="header-logo">
+        <img src="logo.jpg" alt="Faith Hope Love Logo">
+        <h1 style="margin-top: 10px; font-size: 24px;">團契幹部選舉</h1>
+    </div>
+    
+    <div id="login-section" class="card">
+        <h2 style="font-size: 18px;">請輸入投票密碼</h2>
+        <input type="text" id="access-code-input" placeholder="請輸入主辦人發放的 5 碼密碼">
+        <button id="verify-btn">驗證密碼</button>
+        <p id="login-message" style="color: red; font-weight: bold; text-align: center; margin-top: 10px;"></p>
+    </div>
+
+    <div id="voting-section" style="display: none;">
+        <div id="voting-form" class="card"></div>
+        <button id="submit-vote-btn" style="background: #28a745; margin-bottom: 50px;">確認送出選票</button>
+    </div>
+
+    <div id="success-section" class="card" style="display: none; text-align: center;">
+        <h2 style="color: #28a745;">投票成功！</h2>
+        <p>您的選票已妥善投入系統中，謝謝您的參與。</p>
+    </div>
+
+    <script type="module" src="index.js"></script>
+</body>
+</html>
