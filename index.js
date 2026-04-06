@@ -2,12 +2,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebas
 import { getFirestore, collection, getDocs, doc, getDoc, addDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCInvUQaAjeXydIwrjHBtI6zGNCObbOFw8",
-  authDomain: "fhlvotingsystem-2f57a.firebaseapp.com",
-  projectId: "fhlvotingsystem-2f57a",
-  storageBucket: "fhlvotingsystem-2f57a.firebasestorage.app",
-  messagingSenderId: "360590968518",
-  appId: "1:360590968518:web:149da0f1257d70676bb9c7"
+  apiKey: "AIzaSyAIjvvxEkBudM_mDl6NC8QlNflA03PUNjM",
+  authDomain: "fhlsystem-ea976.firebaseapp.com",
+  projectId: "fhlsystem-ea976",
+  storageBucket: "fhlsystem-ea976.firebasestorage.app",
+  messagingSenderId: "841389335210",
+  appId: "1:841389335210:web:57b91cfa52a3d323d4a6d3"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -16,12 +16,33 @@ const db = getFirestore(app);
 let validAccessCode = "";
 let globalRolesConfig =[]; 
 
+const closedSection = document.getElementById('closed-section');
 const loginSection = document.getElementById('login-section');
 const votingSection = document.getElementById('voting-section');
 const successSection = document.getElementById('success-section');
 const verifyBtn = document.getElementById('verify-btn');
 const submitBtn = document.getElementById('submit-vote-btn');
 const loginMessage = document.getElementById('login-message');
+
+// ★ 新增：網頁載入時，先檢查系統有沒有被鎖住
+async function checkSystemStatus() {
+    try {
+        const settingSnap = await getDoc(doc(db, "SystemSettings", "global"));
+        // 如果設定存在，且 isVotingOpen 被設為 false，就鎖住系統
+        if (settingSnap.exists() && settingSnap.data().isVotingOpen === false) {
+            closedSection.style.display = "block";
+            loginSection.style.display = "none";
+        } else {
+            // 系統開放
+            closedSection.style.display = "none";
+            loginSection.style.display = "block";
+        }
+    } catch (error) {
+        console.error("無法取得系統狀態");
+        loginSection.style.display = "block"; // 預設開放
+    }
+}
+checkSystemStatus();
 
 verifyBtn.addEventListener('click', async () => {
     const inputCode = document.getElementById('access-code-input').value.trim();
@@ -46,7 +67,6 @@ verifyBtn.addEventListener('click', async () => {
     verifyBtn.textContent = "驗證密碼";
 });
 
-// ★ 全新：下拉選單渲染邏輯
 async function renderVotingForm() {
     const formContainer = document.getElementById('voting-form');
     formContainer.innerHTML = '<h2>載入選票中...</h2>';
@@ -69,7 +89,6 @@ async function renderVotingForm() {
             titleElement.style.marginTop = "0";
             roleDiv.appendChild(titleElement);
 
-            // 依據應選人數，跑迴圈產生對應數量的下拉選單
             for (let i = 0; i < data.max_votes; i++) {
                 const label = document.createElement('span');
                 label.className = 'select-label';
@@ -77,33 +96,24 @@ async function renderVotingForm() {
                 roleDiv.appendChild(label);
 
                 const select = document.createElement('select');
-                select.className = 'candidate-select'; // 加上 class 方便後面抓取
-                select.name = data.title; // 用 name 紀錄這是哪個職位
-
-                // 預設的空白選項
+                select.className = 'candidate-select'; 
+                select.name = data.title; 
                 select.innerHTML = `<option value="">-- 放棄 / 不圈選 --</option>`;
 
-                // 把候選人塞進選單
                 data.candidates.forEach((personName) => {
                     select.innerHTML += `<option value="${personName}">${personName}</option>`;
                 });
 
-                // ★ 核心防呆：只要有選單改變，就檢查有沒有重複選同一個人
                 select.addEventListener('change', (e) => {
-                    if (!e.target.value) return; // 如果選回空白則不檢查
-                    
+                    if (!e.target.value) return; 
                     const allSelects = document.querySelectorAll('.candidate-select');
                     let count = 0;
-                    allSelects.forEach(s => {
-                        if (s.value === e.target.value) count++;
-                    });
-                    
+                    allSelects.forEach(s => { if (s.value === e.target.value) count++; });
                     if (count > 1) {
-                        alert(`「${e.target.value}」已經被選取了，同一個人不能重複選或兼任喔！`);
-                        e.target.value = ""; // 強制變回空白
+                        alert(`「${e.target.value}」已經被選取了，同一個人不能重複選喔！`);
+                        e.target.value = ""; 
                     }
                 });
-
                 roleDiv.appendChild(select);
             }
             formContainer.appendChild(roleDiv);
@@ -113,15 +123,13 @@ async function renderVotingForm() {
     }
 }
 
-// ★ 全新：下拉選單送出邏輯
 submitBtn.addEventListener('click', async () => {
     const voteData = {};
     const allSelects = document.querySelectorAll('.candidate-select');
-    
     allSelects.forEach(select => {
         const role = select.name;
         const candidate = select.value;
-        if (candidate) { // 只有當使用者有選人的時候，才加入計算
+        if (candidate) { 
             if (!voteData[role]) voteData[role] = []; 
             voteData[role].push(candidate); 
         }

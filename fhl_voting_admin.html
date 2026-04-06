@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>選務後台管理系統</title>
+    <style>
+        body { font-family: '微軟正黑體', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #333; color: #fff; }
+        .card { background: #444; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        input, textarea { width: 100%; padding: 10px; margin: 5px 0 15px 0; box-sizing: border-box; border-radius: 5px; border: none; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 5px; }
+        button:hover { background: #0056b3; }
+        /* 讓密碼顯示區可以滾動，不佔據整個手機螢幕 */
+        .code-box { background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; max-height: 200px; overflow-y: auto; line-height: 1.8; }
+        .code-item { display: inline-block; width: 80px; text-align: center; margin-right: 10px; border-radius: 3px; }
+        .code-unused { color: #28a745; background: #e6f4ea; }
+        .code-used { color: #dc3545; background: #fce8e6; text-decoration: line-through; }
+        hr { border-color: #666; }
+    </style>
+</head>
+<body>
+
+    <h1>⚙️ 選務後台管理</h1>
+
+    <!-- ★ 新增：系統總開關 -->
+    <div class="card" style="border: 2px solid #ffc107;">
+        <h2 style="color: #ffc107; margin-top:0;">0. 投票系統開關</h2>
+        <p>控制現場是否可以投票。目前狀態：<strong id="status-display" style="font-size: 20px;">讀取中...</strong></p>
+        <button id="toggle-system-btn" style="background: #6c757d;">切換開/關</button>
+    </div>
+
+    <!-- 區塊 1：產生與管理密碼 -->
+    <div class="card">
+        <h2>1. 密碼庫管理</h2>
+        <label>產生數量：</label>
+        <input type="number" id="code-amount" value="30" min="1" max="100">
+        <button id="generate-codes-btn">隨機產生新密碼</button>
+        <button id="load-codes-btn" style="background: #17a2b8; margin-left: 10px;">重新整理 / 顯示所有密碼</button>
+        
+        <div id="codes-display" class="code-box" style="display: none; margin-top: 15px;"></div>
+    </div>
+
+    <!-- 區塊 2：設定職位與候選人 -->
+    <div class="card">
+        <h2>2. 設定選舉職位</h2>
+        <label>職位名稱 (例如：小組長)</label>
+        <input type="text" id="role-title" placeholder="輸入職位名稱">
+        
+        <label>應選人數</label>
+        <input type="number" id="role-max" placeholder="輸入數字，例如: 4" min="1">
+
+        <label>顯示順序 (數字越小排越上面，例如 1)</label>
+        <input type="number" id="role-order" value="1">
+        
+        <label>候選人名單 (請用「半角逗號 ,」隔開每個人)</label>
+        <textarea id="role-candidates" rows="3" placeholder="例如: 張三,李四,王五"></textarea>
+        
+        <button id="add-role-btn" style="background: #28a745; width: 100%; font-size: 18px;">新增 / 儲存職位</button>
+        <button id="cancel-edit-btn" style="background: #6c757d; width: 100%; display: none; margin-top: 5px;">取消編輯</button>
+    </div>
+
+    <!-- 區塊 3：目前的職位列表 -->
+    <div class="card">
+        <h2>目前的選票設定</h2>
+        <div id="current-roles-list">讀取中...</div>
+    </div>
+
+    <!-- 區塊 4：開票結果 -->
+    <div class="card">
+        <h2>3. 開票結果</h2>
+        <button id="tally-btn" style="background: #dc3545;">進行開票</button>
+        <button id="export-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出 Excel 詳細紀錄</button>
+        <div id="tally-result" style="margin-top: 15px; background: #fff; color: #000; padding: 15px; border-radius: 5px; display: none;"></div>
+    </div>
+
+    <!-- 區塊 5：交接與重置 -->
+    <div class="card" style="border: 2px solid #dc3545;">
+        <h2 style="color: #dc3545;">⚠️ 換屆交接：重置系統</h2>
+        <button id="reset-system-btn" style="background: transparent; border: 2px solid #dc3545; color: #dc3545;">一鍵清空選票與密碼庫</button>
+    </div>
+
+    <script type="module" src="fhl_voting_admin.js"></script>
+</body>
+</html>
