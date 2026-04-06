@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, addDoc, deleteDoc, updateDoc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, setDoc, addDoc, deleteDoc, updateDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCInvUQaAjeXydIwrjHBtI6zGNCObbOFw8",
@@ -14,8 +14,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let currentTallyResult = {};
-let editingRoleId = null; // 用來記錄現在是否在「編輯模式」
-let isSystemOpen = false; // 記錄系統開關狀態
+let editingRoleId = null; 
+let isSystemOpen = false; 
+let isCodesVisible = false; 
 
 function generateRandomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -24,40 +25,28 @@ function generateRandomCode() {
     return code;
 }
 
-// ==========================================
-// 0. 系統開關控制
-// ==========================================
-async function loadSystemStatus() {
+// 0. 即時監聽系統開關
+onSnapshot(doc(db, "SystemSettings", "global"), (snap) => {
     const statusText = document.getElementById('status-display');
-    try {
-        const snap = await getDoc(doc(db, "SystemSettings", "global"));
-        if (snap.exists()) {
-            isSystemOpen = snap.data().isVotingOpen;
-        } else {
-            isSystemOpen = true; // 預設開啟
-        }
-        statusText.textContent = isSystemOpen ? "✅ 開放投票中" : "⛔ 已關閉投票";
-        statusText.style.color = isSystemOpen ? "#28a745" : "#dc3545";
-    } catch (error) {
-        statusText.textContent = "狀態讀取失敗";
+    if (snap.exists()) {
+        isSystemOpen = snap.data().isVotingOpen;
+    } else {
+        isSystemOpen = true; 
     }
-}
-loadSystemStatus();
+    statusText.textContent = isSystemOpen ? "✅ 開放投票中" : "⛔ 已關閉投票";
+    statusText.style.color = isSystemOpen ? "#28a745" : "#dc3545";
+});
 
 document.getElementById('toggle-system-btn').addEventListener('click', async () => {
     try {
         const newState = !isSystemOpen;
         await setDoc(doc(db, "SystemSettings", "global"), { isVotingOpen: newState });
-        alert(newState ? "系統已開放！大家可以登入投票了。" : "系統已關閉！已阻止任何人登入。");
-        loadSystemStatus();
     } catch (error) {
         alert("切換失敗");
     }
 });
 
-// ==========================================
-// 1. 密碼產生與顯示
-// ==========================================
+// 1. 密碼產生、隱藏與匯出
 document.getElementById('generate-codes-btn').addEventListener('click', async (e) => {
     const amount = parseInt(document.getElementById('code-amount').value) || 30;
     if (!confirm(`確定要產生 ${amount} 組新密碼嗎？`)) return;
@@ -71,7 +60,8 @@ document.getElementById('generate-codes-btn').addEventListener('click', async (e
             await setDoc(doc(db, "AccessCodes", newCode), { isUsed: false });
         }
         alert(`${amount} 組密碼產生成功！`);
-        loadAndDisplayCodes(); // 產生完自動更新畫面
+        
+        if (isCodesVisible) loadAndDisplayCodes();
     } catch (error) {
         alert("產生錯誤！");
     }
@@ -79,25 +69,40 @@ document.getElementById('generate-codes-btn').addEventListener('click', async (e
     e.target.textContent = "隨機產生新密碼";
 });
 
-document.getElementById('load-codes-btn').addEventListener('click', () => {
-    loadAndDisplayCodes();
+document.getElementById('toggle-codes-btn').addEventListener('click', (e) => {
+    isCodesVisible = !isCodesVisible;
+    const wrapper = document.getElementById('codes-wrapper');
+    const exportBtn = document.getElementById('export-codes-btn');
+    
+    if (isCodesVisible) {
+        e.target.textContent = "隱藏密碼";
+        wrapper.style.display = "block";
+        exportBtn.style.display = "inline-block";
+        loadAndDisplayCodes();
+    } else {
+        e.target.textContent = "顯示密碼";
+        wrapper.style.display = "none";
+        exportBtn.style.display = "none";
+    }
 });
 
 async function loadAndDisplayCodes() {
     const displayDiv = document.getElementById('codes-display');
-    displayDiv.style.display = "block";
+    const infoText = document.getElementById('codes-info');
     displayDiv.innerHTML = "讀取中...";
     try {
         const snap = await getDocs(collection(db, "AccessCodes"));
         if (snap.empty) {
             displayDiv.innerHTML = "目前沒有任何密碼。";
+            infoText.textContent = "";
             return;
         }
-        let html = `<p style="color:#aaa; font-size:14px; margin-top:0;">總計 ${snap.size} 組密碼 (綠色可用，紅色已作廢)</p>`;
+        infoText.textContent = `總計 ${snap.size} 組密碼 (綠色可用，紅色已作廢)`;
+        let html = '';
         snap.forEach(docSnap => {
             const isUsed = docSnap.data().isUsed;
             const cssClass = isUsed ? "code-used" : "code-unused";
-            html += `<span class="code-item ${cssClass}">${docSnap.id}</span>`;
+            html += `<div class="code-item ${cssClass}">${docSnap.id}</div>`;
         });
         displayDiv.innerHTML = html;
     } catch (error) {
@@ -105,9 +110,26 @@ async function loadAndDisplayCodes() {
     }
 }
 
-// ==========================================
+document.getElementById('export-codes-btn').addEventListener('click', async () => {
+    let csvContent = "\uFEFF密碼,狀態\n";
+    try {
+        const snap = await getDocs(collection(db, "AccessCodes"));
+        snap.forEach(docSnap => {
+            const isUsed = docSnap.data().isUsed ? "已使用(作廢)" : "可使用";
+            csvContent += `${docSnap.id},${isUsed}\n`;
+        });
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "團契選舉_投票密碼清單.csv";
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    } catch (error) {
+        alert("匯出失敗");
+    }
+});
+
 // 2. 讀取、新增與「編輯」職位
-// ==========================================
 async function loadRoles() {
     const listDiv = document.getElementById('current-roles-list');
     listDiv.innerHTML = "讀取中...";
@@ -132,7 +154,6 @@ async function loadRoles() {
             `;
             listDiv.appendChild(div);
 
-            // ★ 綁定「編輯」按鈕
             div.querySelector('.edit-btn').addEventListener('click', () => {
                 editingRoleId = docSnap.id;
                 document.getElementById('role-title').value = data.title;
@@ -145,7 +166,7 @@ async function loadRoles() {
                 addBtn.style.background = "#ffc107";
                 addBtn.style.color = "#000";
                 document.getElementById('cancel-edit-btn').style.display = "block";
-                window.scrollTo(0, 0); // 畫面滾到最上面
+                window.scrollTo(0, 0); 
             });
         });
 
@@ -161,18 +182,14 @@ async function loadRoles() {
 }
 loadRoles();
 
-// 取消編輯按鈕
-document.getElementById('cancel-edit-btn').addEventListener('click', () => {
-    resetEditForm();
-});
+document.getElementById('cancel-edit-btn').addEventListener('click', () => { resetEditForm(); });
 
 function resetEditForm() {
     editingRoleId = null;
     document.getElementById('role-title').value = "";
     document.getElementById('role-max').value = "";
-    // 不清空候選人，方便下次用
     const addBtn = document.getElementById('add-role-btn');
-    addBtn.textContent = "新增此職位";
+    addBtn.textContent = "新增 / 儲存職位";
     addBtn.style.background = "#28a745";
     addBtn.style.color = "#fff";
     document.getElementById('cancel-edit-btn').style.display = "none";
@@ -189,13 +206,11 @@ document.getElementById('add-role-btn').addEventListener('click', async () => {
 
     try {
         if (editingRoleId) {
-            // 更新現有職位
             await updateDoc(doc(db, "ElectionRoles", editingRoleId), {
                 title: title, max_votes: max, candidates: candArray, order: orderNum
             });
             alert("修改成功！");
         } else {
-            // 新增職位
             await addDoc(collection(db, "ElectionRoles"), {
                 title: title, max_votes: max, candidates: candArray, order: orderNum
             });
@@ -206,9 +221,7 @@ document.getElementById('add-role-btn').addEventListener('click', async () => {
     } catch (error) { alert("儲存失敗。"); }
 });
 
-// ==========================================
-// 3. 開票與匯出 (維持原樣)
-// ==========================================
+// 3. 開票與匯出結果
 document.getElementById('tally-btn').addEventListener('click', async (e) => {
     const resultDiv = document.getElementById('tally-result');
     resultDiv.style.display = "block";
@@ -260,20 +273,18 @@ document.getElementById('export-btn').addEventListener('click', async () => {
         ticketIndex++;
     });
     csvContent += "\n\n--- 總得票數統計 ---\n職位,候選人,得票數\n";
-    for (const [role, counts] of Object.entries(currentTallyResult)) {
+    for (const[role, counts] of Object.entries(currentTallyResult)) {
         const sortedCandidates = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-        for (const [candidate, votes] of sortedCandidates) { csvContent += `${role},${candidate},${votes}\n`; }
+        for (const[candidate, votes] of sortedCandidates) { csvContent += `${role},${candidate},${votes}\n`; }
     }
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "團契幹部選舉_詳細紀錄.csv";
+    link.download = "團契幹部選舉_開票結果.csv";
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 });
 
-// ==========================================
 // 4. 換屆重置
-// ==========================================
 document.getElementById('reset-system-btn').addEventListener('click', async () => {
     if (!confirm("⚠️ 警告：這個動作會永久刪除所有投票紀錄與密碼！確定要刪除嗎？")) return;
     if (prompt("請輸入 'DELETE' 來確認刪除：") !== "DELETE") return;
@@ -287,7 +298,8 @@ document.getElementById('reset-system-btn').addEventListener('click', async () =
         alert("✅ 系統重置成功！");
         document.getElementById('tally-result').innerHTML = ""; 
         document.getElementById('export-btn').style.display = "none";
-        loadAndDisplayCodes();
+        
+        if (isCodesVisible) loadAndDisplayCodes();
     } catch (error) { alert("刪除失敗。"); }
     btn.textContent = "一鍵清空選票與密碼庫"; btn.disabled = false;
 });

@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>選務後台管理系統</title>
+    <title>信望愛幹部選舉後台管理</title>
     <style>
         body { font-family: '微軟正黑體', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #333; color: #fff; }
         .card { background: #444; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         input, textarea { width: 100%; padding: 10px; margin: 5px 0 15px 0; box-sizing: border-box; border-radius: 5px; border: none; }
         button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 5px; }
         button:hover { background: #0056b3; }
-        /* 讓密碼顯示區可以滾動，不佔據整個手機螢幕 */
-        .code-box { background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; max-height: 200px; overflow-y: auto; line-height: 1.8; }
-        .code-item { display: inline-block; width: 80px; text-align: center; margin-right: 10px; border-radius: 3px; }
+        
+        /* 密碼排版，在手機和電腦都會自動適應 */
+        .code-box { background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; max-height: 250px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .code-item { padding: 5px 10px; border-radius: 5px; flex-grow: 1; text-align: center; max-width: 120px; }
         .code-unused { color: #28a745; background: #e6f4ea; }
         .code-used { color: #dc3545; background: #fce8e6; text-decoration: line-through; }
         hr { border-color: #666; }
@@ -22,7 +23,6 @@
 
     <h1>⚙️ 選務後台管理</h1>
 
-    <!-- ★ 新增：系統總開關 -->
     <div class="card" style="border: 2px solid #ffc107;">
         <h2 style="color: #ffc107; margin-top:0;">0. 投票系統開關</h2>
         <p>控制現場是否可以投票。目前狀態：<strong id="status-display" style="font-size: 20px;">讀取中...</strong></p>
@@ -35,9 +35,14 @@
         <label>產生數量：</label>
         <input type="number" id="code-amount" value="30" min="1" max="100">
         <button id="generate-codes-btn">隨機產生新密碼</button>
-        <button id="load-codes-btn" style="background: #17a2b8; margin-left: 10px;">重新整理 / 顯示所有密碼</button>
         
-        <div id="codes-display" class="code-box" style="display: none; margin-top: 15px;"></div>
+        <button id="toggle-codes-btn" style="background: #17a2b8; margin-left: 10px;">顯示密碼</button>
+        <button id="export-codes-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出密碼 Excel</button>
+        
+        <div id="codes-wrapper" style="display: none; margin-top: 15px;">
+            <p id="codes-info" style="color:#aaa; font-size:14px; margin-top:0; margin-bottom:10px; text-align:center;"></p>
+            <div id="codes-display" class="code-box"></div>
+        </div>
     </div>
 
     <!-- 區塊 2：設定職位與候選人 -->
@@ -69,7 +74,7 @@
     <div class="card">
         <h2>3. 開票結果</h2>
         <button id="tally-btn" style="background: #dc3545;">進行開票</button>
-        <button id="export-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出 Excel 詳細紀錄</button>
+        <button id="export-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出開票結果 Excel</button>
         <div id="tally-result" style="margin-top: 15px; background: #fff; color: #000; padding: 15px; border-radius: 5px; display: none;"></div>
     </div>
 
@@ -79,6 +84,7 @@
         <button id="reset-system-btn" style="background: transparent; border: 2px solid #dc3545; color: #dc3545;">一鍵清空選票與密碼庫</button>
     </div>
 
+    <!-- 檔名已更新為你的新命名 -->
     <script type="module" src="fhl_voting_admin.js"></script>
 </body>
 </html>

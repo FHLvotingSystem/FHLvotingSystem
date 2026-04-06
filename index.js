@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, getDoc, addDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc, addDoc, updateDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCInvUQaAjeXydIwrjHBtI6zGNCObbOFw8",
@@ -24,25 +24,26 @@ const verifyBtn = document.getElementById('verify-btn');
 const submitBtn = document.getElementById('submit-vote-btn');
 const loginMessage = document.getElementById('login-message');
 
-// ★ 新增：網頁載入時，先檢查系統有沒有被鎖住
-async function checkSystemStatus() {
-    try {
-        const settingSnap = await getDoc(doc(db, "SystemSettings", "global"));
-        // 如果設定存在，且 isVotingOpen 被設為 false，就鎖住系統
-        if (settingSnap.exists() && settingSnap.data().isVotingOpen === false) {
-            closedSection.style.display = "block";
-            loginSection.style.display = "none";
+// ★ 即時監聽系統開關
+onSnapshot(doc(db, "SystemSettings", "global"), (snap) => {
+    let isOpen = true; 
+    if (snap.exists() && snap.data().isVotingOpen === false) {
+        isOpen = false;
+    }
+
+    if (!isOpen) {
+        closedSection.style.display = "block";
+        loginSection.style.display = "none";
+        votingSection.style.display = "none";
+    } else {
+        closedSection.style.display = "none";
+        if (validAccessCode) {
+            votingSection.style.display = "block";
         } else {
-            // 系統開放
-            closedSection.style.display = "none";
             loginSection.style.display = "block";
         }
-    } catch (error) {
-        console.error("無法取得系統狀態");
-        loginSection.style.display = "block"; // 預設開放
     }
-}
-checkSystemStatus();
+});
 
 verifyBtn.addEventListener('click', async () => {
     const inputCode = document.getElementById('access-code-input').value.trim();
