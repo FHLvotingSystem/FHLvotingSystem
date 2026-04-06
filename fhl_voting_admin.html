@@ -11,12 +11,23 @@
         button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 5px; }
         button:hover { background: #0056b3; }
         
-        /* 密碼排版，在手機和電腦都會自動適應 */
-        .code-box { background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; max-height: 250px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-        .code-item { padding: 5px 10px; border-radius: 5px; flex-grow: 1; text-align: center; max-width: 120px; }
+        /* ★ 核心升級：使用 CSS Grid 網格排版，強制定寬、靠左對齊 */
+        .code-box { 
+            background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; 
+            max-height: 250px; overflow-y: auto; 
+            display: grid; 
+            grid-template-columns: repeat(9, 1fr); /* 電腦版強制一排 9 個 */
+            gap: 8px; 
+        }
+        .code-item { padding: 6px 0; border-radius: 5px; text-align: center; width: 100%; box-sizing: border-box; }
         .code-unused { color: #28a745; background: #e6f4ea; }
         .code-used { color: #dc3545; background: #fce8e6; text-decoration: line-through; }
         hr { border-color: #666; }
+
+        /* 手機版自動切換為一排 3 個 */
+        @media (max-width: 600px) {
+            .code-box { grid-template-columns: repeat(3, 1fr); }
+        }
     </style>
 </head>
 <body>
@@ -29,7 +40,6 @@
         <button id="toggle-system-btn" style="background: #6c757d;">切換開/關</button>
     </div>
 
-    <!-- 區塊 1：產生與管理密碼 -->
     <div class="card">
         <h2>1. 密碼庫管理</h2>
         <label>產生數量：</label>
@@ -45,7 +55,6 @@
         </div>
     </div>
 
-    <!-- 區塊 2：設定職位與候選人 -->
     <div class="card">
         <h2>2. 設定選舉職位</h2>
         <label>職位名稱 (例如：小組長)</label>
@@ -64,13 +73,11 @@
         <button id="cancel-edit-btn" style="background: #6c757d; width: 100%; display: none; margin-top: 5px;">取消編輯</button>
     </div>
 
-    <!-- 區塊 3：目前的職位列表 -->
     <div class="card">
         <h2>目前的選票設定</h2>
         <div id="current-roles-list">讀取中...</div>
     </div>
 
-    <!-- 區塊 4：開票結果 -->
     <div class="card">
         <h2>3. 開票結果</h2>
         <button id="tally-btn" style="background: #dc3545;">進行開票</button>
@@ -78,13 +85,11 @@
         <div id="tally-result" style="margin-top: 15px; background: #fff; color: #000; padding: 15px; border-radius: 5px; display: none;"></div>
     </div>
 
-    <!-- 區塊 5：交接與重置 -->
     <div class="card" style="border: 2px solid #dc3545;">
         <h2 style="color: #dc3545;">⚠️ 換屆交接：重置系統</h2>
         <button id="reset-system-btn" style="background: transparent; border: 2px solid #dc3545; color: #dc3545;">一鍵清空選票與密碼庫</button>
     </div>
 
-    <!-- 檔名已更新為你的新命名 -->
     <script type="module" src="fhl_voting_admin.js"></script>
 </body>
 </html>

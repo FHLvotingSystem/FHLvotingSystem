@@ -13,7 +13,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let currentTallyResult = {};
 let editingRoleId = null; 
 let isSystemOpen = false; 
 let isCodesVisible = false; 
@@ -60,7 +59,6 @@ document.getElementById('generate-codes-btn').addEventListener('click', async (e
             await setDoc(doc(db, "AccessCodes", newCode), { isUsed: false });
         }
         alert(`${amount} 組密碼產生成功！`);
-        
         if (isCodesVisible) loadAndDisplayCodes();
     } catch (error) {
         alert("產生錯誤！");
@@ -118,11 +116,10 @@ document.getElementById('export-codes-btn').addEventListener('click', async () =
             const isUsed = docSnap.data().isUsed ? "已使用(作廢)" : "可使用";
             csvContent += `${docSnap.id},${isUsed}\n`;
         });
-        
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "團契選舉_投票密碼清單.csv";
+        link.download = "信望愛幹部選舉_投票密碼清單.csv";
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     } catch (error) {
         alert("匯出失敗");
@@ -221,13 +218,21 @@ document.getElementById('add-role-btn').addEventListener('click', async () => {
     } catch (error) { alert("儲存失敗。"); }
 });
 
-// 3. 開票與匯出結果
+// ==========================================
+// 3. 開票與「左右矩陣」匯出結果
+// ==========================================
 document.getElementById('tally-btn').addEventListener('click', async (e) => {
     const resultDiv = document.getElementById('tally-result');
     resultDiv.style.display = "block";
     resultDiv.innerHTML = "努力計算中...";
     e.target.disabled = true;
     try {
+        // 先抓職位設定（確保畫面顯示順序正確）
+        const qRoles = query(collection(db, "ElectionRoles"), orderBy("order", "asc"));
+        const rolesSnap = await getDocs(qRoles);
+        let orderedRoles =[];
+        rolesSnap.forEach(doc => orderedRoles.push(doc.data().title));
+
         const votesSnap = await getDocs(collection(db, "Votes"));
         if (votesSnap.empty) { resultDiv.innerHTML = "目前還沒有任何人投票喔！"; e.target.disabled = false; return; }
 
@@ -244,16 +249,22 @@ document.getElementById('tally-btn').addEventListener('click', async (e) => {
                 });
             }
         });
-        currentTallyResult = voteCounts; 
+        
         let html = `<h3 style="color:#007bff; border-bottom: 2px solid #ccc; padding-bottom: 5px;">總投票人數：${totalBallots} 人</h3>`;
-        for (const[role, counts] of Object.entries(voteCounts)) {
-            html += `<h4 style="margin-bottom: 5px; margin-top: 15px;">${role}</h4><ul style="margin-top: 0;">`;
-            const sortedCandidates = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-            for (const [candidate, votes] of sortedCandidates) {
-                html += `<li style="font-size: 18px; margin-bottom: 5px;">${candidate}：<strong style="color: #dc3545; font-size: 22px;">${votes}</strong> 票</li>`;
+        
+        // ★ 照順序印出結果
+        orderedRoles.forEach(role => {
+            if (voteCounts[role]) {
+                const counts = voteCounts[role];
+                html += `<h4 style="margin-bottom: 5px; margin-top: 15px;">${role}</h4><ul style="margin-top: 0;">`;
+                const sortedCandidates = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                for (const [candidate, votes] of sortedCandidates) {
+                    html += `<li style="font-size: 18px; margin-bottom: 5px;">${candidate}：<strong style="color: #dc3545; font-size: 22px;">${votes}</strong> 票</li>`;
+                }
+                html += `</ul>`;
             }
-            html += `</ul>`;
-        }
+        });
+
         resultDiv.innerHTML = html;
         document.getElementById('export-btn').style.display = "inline-block"; 
     } catch (error) { resultDiv.innerHTML = "<p style='color:red;'>開票發生錯誤。</p>"; }
@@ -261,27 +272,110 @@ document.getElementById('tally-btn').addEventListener('click', async (e) => {
 });
 
 document.getElementById('export-btn').addEventListener('click', async () => {
-    if (Object.keys(currentTallyResult).length === 0) return;
-    let csvContent = "\uFEFF--- 匿名選票明細 ---\n選票編號,職位,勾選的候選人\n";
-    const votesSnap = await getDocs(collection(db, "Votes"));
-    let ticketIndex = 1;
-    votesSnap.forEach(doc => {
-        const ballot = doc.data();
-        for (const[role, candidates] of Object.entries(ballot)) {
-            csvContent += `第 ${ticketIndex} 票,${role},"${candidates.join(', ')}"\n`;
-        }
-        ticketIndex++;
-    });
-    csvContent += "\n\n--- 總得票數統計 ---\n職位,候選人,得票數\n";
-    for (const[role, counts] of Object.entries(currentTallyResult)) {
-        const sortedCandidates = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-        for (const[candidate, votes] of sortedCandidates) { csvContent += `${role},${candidate},${votes}\n`; }
+    try {
+        // 1. 抓取正確順序的職位 & 所有不重複的候選人
+        const qRoles = query(collection(db, "ElectionRoles"), orderBy("order", "asc"));
+        const rolesSnap = await getDocs(qRoles);
+        let orderedRoles =[];
+        let allCandidatesSet = new Set();
+        rolesSnap.forEach(doc => {
+            const data = doc.data();
+            orderedRoles.push(data.title);
+            data.candidates.forEach(c => allCandidatesSet.add(c));
+        });
+        const allCandidates = Array.from(allCandidatesSet);
+
+        // 2. 抓取所有選票
+        const votesSnap = await getDocs(collection(db, "Votes"));
+        if(votesSnap.empty) { alert("目前沒有選票可匯出"); return; }
+
+        // 3. 準備矩陣與統計資料
+        let matrix = {}; // matrix['張三']['主席'] = 票數
+        let roleTotals = {}; // roleTotals['主席']['張三'] = 票數
+        allCandidates.forEach(c => { matrix[c] = {}; orderedRoles.forEach(r => matrix[c][r] = 0); });
+        orderedRoles.forEach(r => roleTotals[r] = {});
+
+        let rawVotesList =[];
+        let ticketIndex = 1;
+        votesSnap.forEach(doc => {
+            const ballot = doc.data();
+            for (const[role, candidates] of Object.entries(ballot)) {
+                // 存入左邊流水帳陣列
+                rawVotesList.push({ ticket: `第 ${ticketIndex} 票`, role: role, cands: candidates.join(', ') });
+                // 計算右邊矩陣與總計
+                candidates.forEach(candidate => {
+                    if (matrix[candidate] !== undefined && matrix[candidate][role] !== undefined) {
+                        matrix[candidate][role]++;
+                    }
+                    if (!roleTotals[role]) roleTotals[role] = {};
+                    if (!roleTotals[role][candidate]) roleTotals[role][candidate] = 0;
+                    roleTotals[role][candidate]++;
+                });
+            }
+            ticketIndex++;
+        });
+
+        // 4. 建立 2D 陣列 (CSV Grid)
+        let csvRows =[];
+        const writeCell = (r, c, val) => {
+            while (csvRows.length <= r) csvRows.push([]);
+            while (csvRows[r].length <= c) csvRows[r].push("");
+            if (typeof val === 'string' && val.includes(',')) val = `"${val}"`; // 避免逗號斷行
+            csvRows[r][c] = val;
+        };
+
+        // --- 左側：流水帳 ---
+        let leftRow = 0;
+        writeCell(leftRow++, 0, "--- 匿名選票明細 ---");
+        writeCell(leftRow, 0, "選票編號"); writeCell(leftRow, 1, "職位"); writeCell(leftRow, 2, "勾選的候選人");
+        leftRow++;
+        rawVotesList.forEach(item => {
+            writeCell(leftRow, 0, item.ticket); writeCell(leftRow, 1, item.role); writeCell(leftRow, 2, item.cands);
+            leftRow++;
+        });
+
+        // --- 右側上方：得票矩陣 (Column G 開始，也就是 index 6) ---
+        let rightRow = 0;
+        writeCell(rightRow++, 6, "--- 候選人得票矩陣 ---");
+        writeCell(rightRow, 6, "候選人 \\ 職位");
+        orderedRoles.forEach((role, i) => writeCell(rightRow, 7 + i, role));
+        rightRow++;
+
+        allCandidates.forEach(cand => {
+            writeCell(rightRow, 6, cand);
+            orderedRoles.forEach((role, i) => writeCell(rightRow, 7 + i, matrix[cand][role]));
+            rightRow++;
+        });
+
+        rightRow += 2; // 空兩行
+
+        // --- 右側下方：最終排序統計 ---
+        writeCell(rightRow++, 6, "--- 最終得票統計 ---");
+        writeCell(rightRow, 6, "職位"); writeCell(rightRow, 7, "候選人"); writeCell(rightRow, 8, "得票數");
+        rightRow++;
+
+        orderedRoles.forEach(role => {
+            if (roleTotals[role]) {
+                const sorted = Object.entries(roleTotals[role]).sort((a, b) => b[1] - a[1]);
+                sorted.forEach(([cand, votes]) => {
+                    writeCell(rightRow, 6, role); writeCell(rightRow, 7, cand); writeCell(rightRow, 8, votes);
+                    rightRow++;
+                });
+            }
+        });
+
+        // 5. 輸出成 CSV 下載
+        let csvContent = "\uFEFF" + csvRows.map(row => row.join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "信望愛幹部選舉_開票結果.csv";
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+
+    } catch (error) {
+        alert("匯出發生錯誤");
+        console.error(error);
     }
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "團契幹部選舉_開票結果.csv";
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
 });
 
 // 4. 換屆重置
