@@ -2,12 +2,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebas
 import { getFirestore, collection, getDocs, doc, getDoc, addDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAIjvvxEkBudM_mDl6NC8QlNflA03PUNjM",
-  authDomain: "fhlsystem-ea976.firebaseapp.com",
-  projectId: "fhlsystem-ea976",
-  storageBucket: "fhlsystem-ea976.firebasestorage.app",
-  messagingSenderId: "841389335210",
-  appId: "1:841389335210:web:57b91cfa52a3d323d4a6d3"
+  apiKey: "AIzaSyCInvUQaAjeXydIwrjHBtI6zGNCObbOFw8",
+  authDomain: "fhlvotingsystem-2f57a.firebaseapp.com",
+  projectId: "fhlvotingsystem-2f57a",
+  storageBucket: "fhlvotingsystem-2f57a.firebasestorage.app",
+  messagingSenderId: "360590968518",
+  appId: "1:360590968518:web:149da0f1257d70676bb9c7"
 };
 
 const app = initializeApp(firebaseConfig);
