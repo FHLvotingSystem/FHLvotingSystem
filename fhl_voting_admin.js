@@ -272,27 +272,25 @@ document.getElementById('tally-btn').addEventListener('click', async (e) => {
 });
 
 // ==========================================
-// ★ 全新升級：匯出包含「正取與候補(N+2)」的完美矩陣報表
+// ★ 終極升級：匯出彩色、上下排版的 Excel (.xls) 報表
 // ==========================================
 document.getElementById('export-btn').addEventListener('click', async () => {
     try {
-        // 1. 抓取正確順序的職位 (包含應選人數) & 所有不重複的候選人
         const qRoles = query(collection(db, "ElectionRoles"), orderBy("order", "asc"));
         const rolesSnap = await getDocs(qRoles);
         let orderedRoles =[];
         let allCandidatesSet = new Set();
+        
         rolesSnap.forEach(doc => {
             const data = doc.data();
-            orderedRoles.push({ title: data.title, max: data.max_votes }); // 把 max_votes 也存起來
+            orderedRoles.push({ title: data.title, max: data.max_votes });
             data.candidates.forEach(c => allCandidatesSet.add(c));
         });
         const allCandidates = Array.from(allCandidatesSet);
 
-        // 2. 抓取所有選票
         const votesSnap = await getDocs(collection(db, "Votes"));
         if(votesSnap.empty) { alert("目前沒有選票可匯出"); return; }
 
-        // 3. 準備矩陣與統計資料
         let matrix = {}; 
         let roleTotals = {}; 
         allCandidates.forEach(c => { matrix[c] = {}; orderedRoles.forEach(r => matrix[c][r.title] = 0); });
@@ -316,73 +314,93 @@ document.getElementById('export-btn').addEventListener('click', async () => {
             ticketIndex++;
         });
 
-        // 4. 建立 2D 陣列 (CSV Grid)
-        let csvRows =[];
-        const writeCell = (r, c, val) => {
-            while (csvRows.length <= r) csvRows.push([]);
-            while (csvRows[r].length <= c) csvRows[r].push("");
-            if (typeof val === 'string' && val.includes(',')) val = `"${val}"`; 
-            csvRows[r][c] = val;
-        };
+        // 建立 Excel 適用的 HTML 結構 (支援 CSS 顏色與排版)
+        let html = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta charset="utf-8">
+            <style>
+                table { border-collapse: collapse; text-align: center; font-family: '微軟正黑體', sans-serif; }
+                th, td { border: 1px solid #ccc; padding: 8px; }
+                th { background-color: #343a40; color: white; font-weight: bold; }
+                .title-row { background-color: #007bff; color: white; font-size: 18px; font-weight: bold; text-align: left; }
+                .winner { background-color: #e6f4ea; color: #137333; font-weight: bold; }
+                .alternate { background-color: #fff3cd; color: #856404; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+        `;
 
-        // --- 左側：流水帳 ---
-        let leftRow = 0;
-        writeCell(leftRow++, 0, "--- 匿名選票明細 ---");
-        writeCell(leftRow, 0, "選票編號"); writeCell(leftRow, 1, "職位"); writeCell(leftRow, 2, "勾選的候選人");
-        leftRow++;
-        rawVotesList.forEach(item => {
-            writeCell(leftRow, 0, item.ticket); writeCell(leftRow, 1, item.role); writeCell(leftRow, 2, item.cands);
-            leftRow++;
-        });
-
-        // --- 右側上方：得票矩陣 ---
-        let rightRow = 0;
-        writeCell(rightRow++, 6, "--- 候選人得票矩陣 ---");
-        writeCell(rightRow, 6, "候選人 \\ 職位");
-        orderedRoles.forEach((r, i) => writeCell(rightRow, 7 + i, r.title));
-        rightRow++;
-
-        allCandidates.forEach(cand => {
-            writeCell(rightRow, 6, cand);
-            orderedRoles.forEach((r, i) => writeCell(rightRow, 7 + i, matrix[cand][r.title]));
-            rightRow++;
-        });
-
-        rightRow += 2; 
-
-        // --- 右側下方：最終預測 (正取 + N+2候補) ---
-        writeCell(rightRow++, 6, "--- 最終得票預測與候補 ---");
+        // --- 區塊 1：最終得票統計與當選預測 ---
+        html += `<table>`;
+        html += `<tr><td colspan="4" class="title-row">🏆 最終得票統計與當選預測 (正取與候補)</td></tr>`;
+        html += `<tr><th>職位 (應選人數)</th><th>當選狀態</th><th>候選人姓名</th><th>得票數</th></tr>`;
 
         orderedRoles.forEach(r => {
             const role = r.title;
             const max = r.max;
-            writeCell(rightRow, 6, `${role} (應選${max}人)`);
-
             if (roleTotals[role] && Object.keys(roleTotals[role]).length > 0) {
-                // 將該職位的人依票數從高到低排序
                 const sorted = Object.entries(roleTotals[role]).sort((a, b) => b[1] - a[1]);
-                
-                // 只取前 N + 2 名
-                const topN = sorted.slice(0, max + 2);
+                const topN = sorted.slice(0, max + 2); // 取正取 + 2位候補
 
                 topN.forEach(([cand, votes], idx) => {
-                    // 判斷是正取還是候補
-                    let label = idx < max ? `正取${idx + 1}` : `候補${idx - max + 1}`;
-                    writeCell(rightRow, 7 + idx, `[${label}] ${cand} (${votes}票)`);
+                    const isWinner = idx < max;
+                    const statusClass = isWinner ? 'winner' : 'alternate';
+                    const statusText = isWinner ? `正取 ${idx + 1}` : `候補 ${idx - max + 1}`;
+                    
+                    html += `<tr>
+                        <td>${role} (應選 ${max} 人)</td>
+                        <td class="${statusClass}">${statusText}</td>
+                        <td style="font-size: 16px;"><strong>${cand}</strong></td>
+                        <td style="font-size: 16px;"><strong>${votes}</strong></td>
+                    </tr>`;
                 });
             } else {
-                writeCell(rightRow, 7, "無人得票");
+                html += `<tr><td>${role}</td><td colspan="3" style="color: #999;">無人得票</td></tr>`;
             }
-            rightRow++;
         });
+        html += `</table><br><br>`;
 
-        // 5. 輸出成 CSV 下載
-        let csvContent = "\uFEFF" + csvRows.map(row => row.join(",")).join("\n");
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // --- 區塊 2：候選人得票交叉分析矩陣 ---
+        html += `<table>`;
+        html += `<tr><td colspan="${orderedRoles.length + 1}" class="title-row">📊 候選人得票交叉分析矩陣</td></tr>`;
+        html += `<tr><th>候選人 \\ 職位</th>`;
+        orderedRoles.forEach(r => html += `<th>${r.title}</th>`);
+        html += `</tr>`;
+
+        allCandidates.forEach(cand => {
+            html += `<tr><td style="background-color: #f8f9fa;"><strong>${cand}</strong></td>`;
+            orderedRoles.forEach(r => {
+                const v = matrix[cand][r.title] || 0;
+                // 如果得票 > 0，稍微加粗顯示
+                const cellStyle = v > 0 ? "font-weight: bold; color: #d32f2f;" : "color: #ccc;";
+                html += `<td style="${cellStyle}">${v}</td>`;
+            });
+            html += `</tr>`;
+        });
+        html += `</table><br><br><br><br>`; // 多空幾行，讓流水帳在很下面
+
+        // --- 區塊 3：原始匿名選票流水帳 ---
+        html += `<table>`;
+        html += `<tr><td colspan="3" class="title-row">📝 原始匿名選票明細 (供稽核使用)</td></tr>`;
+        html += `<tr><th>選票編號</th><th>填寫職位</th><th>勾選的候選人</th></tr>`;
+        rawVotesList.forEach(item => {
+            html += `<tr>
+                <td>${item.ticket}</td>
+                <td>${item.role}</td>
+                <td style="text-align: left;">${item.cands}</td>
+            </tr>`;
+        });
+        html += `</table></body></html>`;
+
+        // 將 HTML 轉換為 .xls 格式下載
+        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "信望愛幹部選舉_完美開票結果.csv";
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        link.download = "信望愛幹部選舉_完美開票結果.xls"; // 副檔名改為 xls
+        document.body.appendChild(link); 
+        link.click(); 
+        document.body.removeChild(link);
 
     } catch (error) {
         alert("匯出發生錯誤");
