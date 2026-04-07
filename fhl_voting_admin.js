@@ -271,16 +271,19 @@ document.getElementById('tally-btn').addEventListener('click', async (e) => {
     e.target.disabled = false;
 });
 
+// ==========================================
+// ★ 全新升級：匯出包含「正取與候補(N+2)」的完美矩陣報表
+// ==========================================
 document.getElementById('export-btn').addEventListener('click', async () => {
     try {
-        // 1. 抓取正確順序的職位 & 所有不重複的候選人
+        // 1. 抓取正確順序的職位 (包含應選人數) & 所有不重複的候選人
         const qRoles = query(collection(db, "ElectionRoles"), orderBy("order", "asc"));
         const rolesSnap = await getDocs(qRoles);
         let orderedRoles =[];
         let allCandidatesSet = new Set();
         rolesSnap.forEach(doc => {
             const data = doc.data();
-            orderedRoles.push(data.title);
+            orderedRoles.push({ title: data.title, max: data.max_votes }); // 把 max_votes 也存起來
             data.candidates.forEach(c => allCandidatesSet.add(c));
         });
         const allCandidates = Array.from(allCandidatesSet);
@@ -290,19 +293,17 @@ document.getElementById('export-btn').addEventListener('click', async () => {
         if(votesSnap.empty) { alert("目前沒有選票可匯出"); return; }
 
         // 3. 準備矩陣與統計資料
-        let matrix = {}; // matrix['張三']['主席'] = 票數
-        let roleTotals = {}; // roleTotals['主席']['張三'] = 票數
-        allCandidates.forEach(c => { matrix[c] = {}; orderedRoles.forEach(r => matrix[c][r] = 0); });
-        orderedRoles.forEach(r => roleTotals[r] = {});
+        let matrix = {}; 
+        let roleTotals = {}; 
+        allCandidates.forEach(c => { matrix[c] = {}; orderedRoles.forEach(r => matrix[c][r.title] = 0); });
+        orderedRoles.forEach(r => roleTotals[r.title] = {});
 
         let rawVotesList =[];
         let ticketIndex = 1;
         votesSnap.forEach(doc => {
             const ballot = doc.data();
-            for (const[role, candidates] of Object.entries(ballot)) {
-                // 存入左邊流水帳陣列
+            for (const [role, candidates] of Object.entries(ballot)) {
                 rawVotesList.push({ ticket: `第 ${ticketIndex} 票`, role: role, cands: candidates.join(', ') });
-                // 計算右邊矩陣與總計
                 candidates.forEach(candidate => {
                     if (matrix[candidate] !== undefined && matrix[candidate][role] !== undefined) {
                         matrix[candidate][role]++;
@@ -320,7 +321,7 @@ document.getElementById('export-btn').addEventListener('click', async () => {
         const writeCell = (r, c, val) => {
             while (csvRows.length <= r) csvRows.push([]);
             while (csvRows[r].length <= c) csvRows[r].push("");
-            if (typeof val === 'string' && val.includes(',')) val = `"${val}"`; // 避免逗號斷行
+            if (typeof val === 'string' && val.includes(',')) val = `"${val}"`; 
             csvRows[r][c] = val;
         };
 
@@ -334,34 +335,45 @@ document.getElementById('export-btn').addEventListener('click', async () => {
             leftRow++;
         });
 
-        // --- 右側上方：得票矩陣 (Column G 開始，也就是 index 6) ---
+        // --- 右側上方：得票矩陣 ---
         let rightRow = 0;
         writeCell(rightRow++, 6, "--- 候選人得票矩陣 ---");
         writeCell(rightRow, 6, "候選人 \\ 職位");
-        orderedRoles.forEach((role, i) => writeCell(rightRow, 7 + i, role));
+        orderedRoles.forEach((r, i) => writeCell(rightRow, 7 + i, r.title));
         rightRow++;
 
         allCandidates.forEach(cand => {
             writeCell(rightRow, 6, cand);
-            orderedRoles.forEach((role, i) => writeCell(rightRow, 7 + i, matrix[cand][role]));
+            orderedRoles.forEach((r, i) => writeCell(rightRow, 7 + i, matrix[cand][r.title]));
             rightRow++;
         });
 
-        rightRow += 2; // 空兩行
+        rightRow += 2; 
 
-        // --- 右側下方：最終排序統計 ---
-        writeCell(rightRow++, 6, "--- 最終得票統計 ---");
-        writeCell(rightRow, 6, "職位"); writeCell(rightRow, 7, "候選人"); writeCell(rightRow, 8, "得票數");
-        rightRow++;
+        // --- 右側下方：最終預測 (正取 + N+2候補) ---
+        writeCell(rightRow++, 6, "--- 最終得票預測與候補 ---");
 
-        orderedRoles.forEach(role => {
-            if (roleTotals[role]) {
+        orderedRoles.forEach(r => {
+            const role = r.title;
+            const max = r.max;
+            writeCell(rightRow, 6, `${role} (應選${max}人)`);
+
+            if (roleTotals[role] && Object.keys(roleTotals[role]).length > 0) {
+                // 將該職位的人依票數從高到低排序
                 const sorted = Object.entries(roleTotals[role]).sort((a, b) => b[1] - a[1]);
-                sorted.forEach(([cand, votes]) => {
-                    writeCell(rightRow, 6, role); writeCell(rightRow, 7, cand); writeCell(rightRow, 8, votes);
-                    rightRow++;
+                
+                // 只取前 N + 2 名
+                const topN = sorted.slice(0, max + 2);
+
+                topN.forEach(([cand, votes], idx) => {
+                    // 判斷是正取還是候補
+                    let label = idx < max ? `正取${idx + 1}` : `候補${idx - max + 1}`;
+                    writeCell(rightRow, 7 + idx, `[${label}] ${cand} (${votes}票)`);
                 });
+            } else {
+                writeCell(rightRow, 7, "無人得票");
             }
+            rightRow++;
         });
 
         // 5. 輸出成 CSV 下載
@@ -369,7 +381,7 @@ document.getElementById('export-btn').addEventListener('click', async () => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "信望愛幹部選舉_開票結果.csv";
+        link.download = "信望愛幹部選舉_完美開票結果.csv";
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
 
     } catch (error) {
