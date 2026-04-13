@@ -10,24 +10,12 @@
         input, textarea { width: 100%; padding: 10px; margin: 5px 0 15px 0; box-sizing: border-box; border-radius: 5px; border: none; }
         button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 5px; }
         button:hover { background: #0056b3; }
-        
-        /* ★ 核心升級：使用 CSS Grid 網格排版，強制定寬、靠左對齊 */
-        .code-box { 
-            background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; 
-            max-height: 250px; overflow-y: auto; 
-            display: grid; 
-            grid-template-columns: repeat(9, 1fr); /* 電腦版強制一排 9 個 */
-            gap: 8px; 
-        }
+        .code-box { background: #222; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px; letter-spacing: 1px; max-height: 250px; overflow-y: auto; display: grid; grid-template-columns: repeat(9, 1fr); gap: 8px; }
         .code-item { padding: 6px 0; border-radius: 5px; text-align: center; width: 100%; box-sizing: border-box; }
         .code-unused { color: #28a745; background: #e6f4ea; }
         .code-used { color: #dc3545; background: #fce8e6; text-decoration: line-through; }
         hr { border-color: #666; }
-
-        /* 手機版自動切換為一排 3 個 */
-        @media (max-width: 600px) {
-            .code-box { grid-template-columns: repeat(3, 1fr); }
-        }
+        @media (max-width: 600px) { .code-box { grid-template-columns: repeat(3, 1fr); } }
     </style>
 </head>
 <body>
@@ -45,9 +33,8 @@
         <label>產生數量：</label>
         <input type="number" id="code-amount" value="30" min="1" max="100">
         <button id="generate-codes-btn">隨機產生新密碼</button>
-        
         <button id="toggle-codes-btn" style="background: #17a2b8; margin-left: 10px;">顯示密碼</button>
-        <button id="export-codes-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出密碼 Excel</button>
+        <button id="export-codes-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出密碼清單</button>
         
         <div id="codes-wrapper" style="display: none; margin-top: 15px;">
             <p id="codes-info" style="color:#aaa; font-size:14px; margin-top:0; margin-bottom:10px; text-align:center;"></p>
@@ -59,13 +46,10 @@
         <h2>2. 設定選舉職位</h2>
         <label>職位名稱 (例如：小組長)</label>
         <input type="text" id="role-title" placeholder="輸入職位名稱">
-        
         <label>應選人數</label>
         <input type="number" id="role-max" placeholder="輸入數字，例如: 4" min="1">
-
         <label>顯示順序 (數字越小排越上面，例如 1)</label>
         <input type="number" id="role-order" value="1">
-        
         <label>候選人名單 (請用「半角逗號 ,」隔開每個人)</label>
         <textarea id="role-candidates" rows="3" placeholder="例如: 張三,李四,王五"></textarea>
         
@@ -80,8 +64,9 @@
 
     <div class="card">
         <h2>3. 開票結果</h2>
-        <button id="tally-btn" style="background: #dc3545;">進行開票</button>
-        <button id="export-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出開票結果 Excel</button>
+        <button id="tally-btn" style="background: #dc3545;">進行開票 (快速檢視當選人)</button>
+        <!-- ★ 改成匯出彩色網頁報表 -->
+        <button id="export-btn" style="background: #28a745; margin-left: 10px; display: none;">匯出詳細彩色報表 (手機可看)</button>
         <div id="tally-result" style="margin-top: 15px; background: #fff; color: #000; padding: 15px; border-radius: 5px; display: none;"></div>
     </div>
 
